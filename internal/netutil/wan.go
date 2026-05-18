@@ -2,7 +2,6 @@
 package netutil
 
 import (
-	"bytes"
 	"fmt"
 	"os/exec"
 	"strings"
