@@ -68,10 +68,10 @@ func runUserAdd(_ *cobra.Command, args []string) error {
 		return err
 	}
 
-	return writeUserConfig(settings, created, addAdminOnly, addDNS)
+	return writeUserConfig(settings, created, addAdminOnly, addDNS, "created")
 }
 
-func writeUserConfig(settings store.ServerSettings, user store.User, adminOnly bool, dns string) error {
+func writeUserConfig(settings store.ServerSettings, user store.User, adminOnly bool, dns string, action string) error {
 	if !adminOnly && !settings.FullTunnel {
 		adminOnly = true
 	}
@@ -89,7 +89,7 @@ func writeUserConfig(settings store.ServerSettings, user store.User, adminOnly b
 		return err
 	}
 
-	fmt.Println("OK: user created")
+	fmt.Printf("OK: user %s\n", action)
 	fmt.Printf("Name: %s\n", user.Name)
 	fmt.Printf("IP: %s\n", user.AssignedIP)
 	fmt.Printf("Mode: %s\n", clientModeLabel(opts.AdminOnly))

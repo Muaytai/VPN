@@ -49,7 +49,7 @@ func runUserRegen(_ *cobra.Command, args []string) error {
 		adminOnly = !settings.FullTunnel
 	}
 
-	if err := writeUserConfig(settings, user, adminOnly, regenDNS); err != nil {
+	if err := writeUserConfig(settings, user, adminOnly, regenDNS, "regenerated"); err != nil {
 		return err
 	}
 	return nil
