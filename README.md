@@ -1,43 +1,8 @@
-# VPN Manager (учебный проект на Go)
-
+# VPN Manager 
 Управление **WireGuard** через CLI: пользователи, ключи, генерация `.conf`.
 
 > Мы **не** пишем свой VPN-протокол. WireGuard — в ядре Linux.  
 > Наш код на Go — это «панель/скрипт», как админка на Python, только компилируется в один бинарник.
-
----
-
-## Для кого этот README
-
-Ты знаешь **Python + TypeScript**, Go видишь впервые. Ниже — карта соответствий и пошаговый старт.
-
----
-
-## Python/TS → Go: шпаргалка
-
-| Привычно (Py/TS) | В Go |
-|------------------|------|
-| `pip install` / `npm install` | `go mod download` |
-| `requirements.txt` / `package.json` | `go.mod` + `go.sum` |
-| пакет/модуль `myapp/users.py` | пакет `internal/store` (папка = пакет) |
-| `class User` | `struct User` (без наследования) |
-| `interface UserDTO` (TS) | `interface` — набор методов, реализуется неявно |
-| `try/except`, `throw` | `if err != nil { return err }` — ошибки **значения**, не исключения |
-| `async/await` | горутины + `chan` (позже; в MVP не нужны) |
-| `if __name__ == "__main__"` | `cmd/vpnctl/main.go` → `func main()` |
-| FastAPI / Click CLI | [Cobra](https://github.com/spf13/cobra) CLI |
-| SQLAlchemy / Prisma | `database/sql` + SQLite (`internal/store`) |
-
-**Важная идея Go:** явная обработка ошибок на каждом шаге. Это кажется многословным, зато путь ошибки всегда виден в коде.
-
-```go
-user, err := store.CreateUser(u)
-if err != nil {
-    return err  // как raise, но без stack trace по умолчанию
-}
-```
-
----
 
 ## Структура репозитория
 
