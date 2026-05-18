@@ -50,7 +50,7 @@ func init() {
 	serverRenderCmd.Flags().StringVar(&renderWAN, "wan", "", "WAN-интерфейс (перекрывает значение из БД)")
 	serverConfigureCmd.Flags().StringVar(&cfgWAN, "wan", "", "WAN-интерфейс (ens3, eth0)")
 	serverConfigureCmd.Flags().BoolVar(&cfgFullTunnel, "full-tunnel", true, "Весь интернет через VPN")
-	serverConfigureCmd.Flags().StringVar(&cfgDNS, "dns", "1.1.1.1, 8.8.8.8", "DNS для клиентов")
+	serverConfigureCmd.Flags().StringVar(&cfgDNS, "dns", "1.1.1.1", "DNS для клиентов (один IP)")
 
 	serverCmd.AddCommand(serverRenderCmd, serverApplyCmd, serverConfigureCmd)
 	rootCmd.AddCommand(serverCmd)
@@ -82,12 +82,10 @@ func runServerApply(_ *cobra.Command, _ []string) error {
 
 	fmt.Printf("OK: wrote %s (WAN=%s)\n", wgConfig, wan)
 
-	if err := netutil.SyncWireGuard(); err != nil {
-		fmt.Println("wg syncconf failed, try: systemctl restart wg-quick@wg0")
-		fmt.Println(err)
-		return nil
+	if err := netutil.RestartWireGuard(); err != nil {
+		return fmt.Errorf("restart wireguard: %w", err)
 	}
-	fmt.Println("OK: wg syncconf applied")
+	fmt.Println("OK: wg-quick@wg0 restarted (PostUp/NAT applied)")
 	fmt.Println("\nПроверка: wg show")
 	fmt.Println("Клиентам: vpnctl user regen <name> и переимпорт .conf в WireGuard")
 	return nil

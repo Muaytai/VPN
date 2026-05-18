@@ -53,13 +53,16 @@ func EnableIPForward() error {
 	return exec.Command("sh", "-c", `grep -qs '^net.ipv4.ip_forward=1' /etc/sysctl.d/99-vpn-manager.conf || echo 'net.ipv4.ip_forward=1' >> /etc/sysctl.d/99-vpn-manager.conf`).Run()
 }
 
-// SyncWireGuard применяет wg0.conf без полного рестарта (Linux).
-func SyncWireGuard() error {
-	cmd := exec.Command("bash", "-c", `wg syncconf wg0 <(wg-quick strip wg0)`)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("wg syncconf: %w: %s", err, stderr.String())
+// RestartWireGuard перезапускает wg0 и выполняет PostUp/PostDown из wg0.conf.
+// wg syncconf НЕ запускает PostUp — на Docker-хосте без restart нет NAT.
+func RestartWireGuard() error {
+	if err := exec.Command("systemctl", "restart", "wg-quick@wg0").Run(); err != nil {
+		if err2 := exec.Command("wg-quick", "down", "wg0").Run(); err2 != nil {
+			_ = err2
+		}
+		if err3 := exec.Command("wg-quick", "up", "wg0").Run(); err3 != nil {
+			return fmt.Errorf("wg-quick up: %w", err3)
+		}
 	}
 	return nil
 }

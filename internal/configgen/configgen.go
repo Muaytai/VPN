@@ -30,8 +30,9 @@ func ServerInterfaceConfig(s store.ServerSettings, opts ServerRenderOptions) str
 
 	if s.FullTunnel && opts.WANInterface != "" {
 		iface := opts.WANInterface
-		fmt.Fprintf(&b, "PostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -A FORWARD -o wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o %s -j MASQUERADE\n", iface)
-		fmt.Fprintf(&b, "PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -D FORWARD -o wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o %s -j MASQUERADE\n", iface)
+		// -I в начало цепочек: на хосте с Docker FORWARD policy DROP, wg syncconf не вызывает PostUp.
+		fmt.Fprintf(&b, "PostUp = iptables -I DOCKER-USER 1 -i wg0 -j ACCEPT; iptables -I DOCKER-USER 1 -o wg0 -j ACCEPT; iptables -I FORWARD 1 -i wg0 -j ACCEPT; iptables -I FORWARD 1 -o wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o %s -j MASQUERADE\n", iface)
+		fmt.Fprintf(&b, "PostDown = iptables -D DOCKER-USER -i wg0 -j ACCEPT; iptables -D DOCKER-USER -o wg0 -j ACCEPT; iptables -D FORWARD -i wg0 -j ACCEPT; iptables -D FORWARD -o wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o %s -j MASQUERADE\n", iface)
 	}
 	return b.String()
 }
@@ -47,7 +48,8 @@ func PeerBlock(u store.User) string {
 
 // ClientConfig — полный конфиг для телефона/ПК.
 func ClientConfig(s store.ServerSettings, u store.User, opts ClientOptions) string {
-	allowedIPs := "0.0.0.0/0, ::/0"
+	// Только IPv4: ::/0 на Windows часто ломает DNS и «убивает» интернет.
+	allowedIPs := "0.0.0.0/0"
 	if opts.AdminOnly {
 		allowedIPs = serverAddressCIDR(s.SubnetCIDR)
 		if !strings.Contains(allowedIPs, "/") {
@@ -55,15 +57,15 @@ func ClientConfig(s store.ServerSettings, u store.User, opts ClientOptions) stri
 		}
 	}
 
-	dns := opts.DNS
-	if dns == "" {
-		dns = s.DefaultDNS
-	}
+	dns := normalizeDNS(opts.DNS, s.DefaultDNS)
 
 	var b strings.Builder
 	fmt.Fprintf(&b, "[Interface]\n")
 	fmt.Fprintf(&b, "PrivateKey = %s\n", u.ClientPrivateKey)
 	fmt.Fprintf(&b, "Address = %s/32\n", u.AssignedIP)
+	if !opts.AdminOnly {
+		fmt.Fprintf(&b, "MTU = 1420\n")
+	}
 	if dns != "" && !opts.AdminOnly {
 		fmt.Fprintf(&b, "DNS = %s\n", dns)
 	}
@@ -105,4 +107,19 @@ func serverAddressCIDR(subnetCIDR string) string {
 		return strings.Join(octets, ".") + "/" + prefix
 	}
 	return ip + "/" + prefix
+}
+
+// normalizeDNS — один адрес DNS (WireGuard на Windows плохо переваривает "1.1.1.1, 8.8.8.8").
+func normalizeDNS(override, fallback string) string {
+	dns := strings.TrimSpace(override)
+	if dns == "" {
+		dns = strings.TrimSpace(fallback)
+	}
+	if dns == "" {
+		return "1.1.1.1"
+	}
+	if idx := strings.IndexAny(dns, ",;"); idx >= 0 {
+		dns = strings.TrimSpace(dns[:idx])
+	}
+	return dns
 }

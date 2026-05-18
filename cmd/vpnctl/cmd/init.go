@@ -37,7 +37,7 @@ func init() {
 	initCmd.Flags().StringVar(&initSubnet, "subnet", "10.99.0.0/24", "Подсеть VPN")
 	initCmd.Flags().StringVar(&initWAN, "wan", "", "WAN-интерфейс (ens3, eth0). Пусто = авто при server apply")
 	initCmd.Flags().BoolVar(&initFullTunnel, "full-tunnel", true, "Весь интернет через VPN (NAT на сервере)")
-	initCmd.Flags().StringVar(&initDNS, "dns", "1.1.1.1, 8.8.8.8", "DNS в клиентских .conf")
+	initCmd.Flags().StringVar(&initDNS, "dns", "1.1.1.1", "DNS в клиентских .conf (один IP)")
 	rootCmd.AddCommand(initCmd)
 }
 

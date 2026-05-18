@@ -15,7 +15,7 @@ func TestClientConfigFullTunnel(t *testing.T) {
 		ServerPublicKey: "serverPub=",
 		EndpointHost:    "203.0.113.10",
 		FullTunnel:      true,
-		DefaultDNS:      "1.1.1.1, 8.8.8.8",
+		DefaultDNS:      "1.1.1.1",
 	}
 	u := store.User{
 		Name:             "alice",
@@ -27,8 +27,20 @@ func TestClientConfigFullTunnel(t *testing.T) {
 	if !strings.Contains(out, "AllowedIPs = 0.0.0.0/0") {
 		t.Fatalf("expected full tunnel routes, got:\n%s", out)
 	}
+	if strings.Contains(out, "::/0") {
+		t.Fatal("must not include IPv6 default route on Windows-friendly config")
+	}
 	if !strings.Contains(out, "DNS = 1.1.1.1") {
 		t.Fatal("expected DNS in full tunnel config")
+	}
+	if !strings.Contains(out, "MTU = 1420") {
+		t.Fatal("expected MTU for full tunnel")
+	}
+}
+
+func TestNormalizeDNSFirstOnly(t *testing.T) {
+	if got := normalizeDNS("", "1.1.1.1, 8.8.8.8"); got != "1.1.1.1" {
+		t.Fatalf("got %q", got)
 	}
 }
 
@@ -70,5 +82,8 @@ func TestFullServerConfigNAT(t *testing.T) {
 	}
 	if !strings.Contains(out, "MASQUERADE") {
 		t.Fatal("full tunnel server config must include NAT")
+	}
+	if !strings.Contains(out, "DOCKER-USER") {
+		t.Fatal("full tunnel must open DOCKER-USER for wg0")
 	}
 }
