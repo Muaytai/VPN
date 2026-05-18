@@ -1,0 +1,16 @@
+[Unit]
+Description=VPN Manager (WireGuard config generator)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/vpn-manager
+Environment=VPN_DATA_DIR=/var/lib/vpn-manager
+ExecStart=/opt/vpn-manager/bin/vpnctl server render
+ExecStartPost=/usr/bin/bash -c 'wg syncconf wg0 <(wg-quick strip wg0) || true'
+# oneshot: сервис «готов» после генерации конфига; WireGuard поднимается wg-quick@wg0
+
+[Install]
+WantedBy=multi-user.target

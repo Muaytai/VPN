@@ -1,0 +1,13 @@
+# Пример безопасного wg0.conf для сервера с Docker.
+# PostUp/PostDown НЕ используются — не трогаем iptables Docker.
+
+[Interface]
+Address = 10.99.0.1/24
+ListenPort = 51821
+PrivateKey = REPLACE_WITH_SERVER_PRIVATE_KEY
+
+# Peers добавляет vpnctl server render
+
+[Peer]
+PublicKey = REPLACE_CLIENT_PUBLIC_KEY
+AllowedIPs = 10.99.0.2/32
