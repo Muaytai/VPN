@@ -101,8 +101,10 @@ $env:VPN_DATA_DIR = ".\data"
 - `vpn.db` — SQLite
 - `client-configs/alice.conf` — конфиг для WireGuard-клиента
 
-Флаг `--admin-only` (по умолчанию **включён**) — клиент видит только IP VPN-сервера (`10.99.0.1/32`).  
-Это **безопасный режим** для боевого сервера с Docker: не перенаправляет весь интернет через VPN.
+**По умолчанию: full-tunnel** — весь интернет через VPN (`AllowedIPs = 0.0.0.0/0`).  
+Для доступа к Gemini и смены IP нужен `vpnctl server apply` на Linux-сервере (NAT + ip_forward).
+
+Режим только до сервера: `vpnctl user add name --admin-only`
 
 ---
 
@@ -114,7 +116,10 @@ $env:VPN_DATA_DIR = ".\data"
 | `vpnctl user add NAME` | Новый пользователь + `.conf` |
 | `vpnctl user list` | Список пользователей |
 | `vpnctl user revoke NAME` | Отзыв доступа |
-| `vpnctl server render` | Полный `wg0.conf` в stdout |
+| `vpnctl user regen NAME` | Пересоздать `.conf` (после смены режима) |
+| `vpnctl server render` | `wg0.conf` с NAT (full-tunnel) |
+| `vpnctl server apply` | ip_forward + записать wg0 + wg syncconf |
+| `vpnctl server configure` | WAN / DNS / full-tunnel в БД |
 
 ---
 
@@ -122,13 +127,13 @@ $env:VPN_DATA_DIR = ".\data"
 
 Аккаунт: [github.com/Muaytai](https://github.com/Muaytai)
 
-После создания репозитория `vpn-manager` на GitHub:
+Репозиторий: [github.com/Muaytai/VPN](https://github.com/Muaytai/VPN)
 
 ```bash
-git remote add origin https://github.com/Muaytai/vpn-manager.git
+git remote add origin https://github.com/Muaytai/VPN.git
 ```
 
-Модуль Go: `github.com/Muaytai/vpn-manager`
+Модуль Go в коде: `github.com/Muaytai/vpn-manager` (имя модуля в `go.mod`, путь репо может отличаться).
 
 ---
 
@@ -139,23 +144,25 @@ git remote add origin https://github.com/Muaytai/vpn-manager.git
    │                                              │
    ├─ go test ./...                               ├─ go build
    ├─ vpnctl user add (dev)                       ├─ vpnctl init (один раз)
-   └─ правки Go                                   ├─ vpnctl server render → wg0.conf
-                                                  └─ systemctl restart wg-quick@wg0
+   └─ правки Go                                   ├─ vpnctl server apply
+                                                  └─ user regen + переимпорт .conf
 ```
 
-**На боевом сервере до merge в main ничего не ставим.**
-
-После merge:
+После merge на сервере:
 
 ```bash
 cd /opt/vpn-manager
 git pull
-go build -o bin/vpnctl ./cmd/vpnctl
-export VPN_DATA_DIR=/var/lib/vpn-manager
-./bin/vpnctl user add bob
-./bin/vpnctl server render | tee /etc/wireguard/wg0.conf
-wg syncconf wg0 <(wg-quick strip wg0)
+/usr/local/go/bin/go build -o bin/vpnctl ./cmd/vpnctl
+export VPN_DATA_DIR=/opt/vpn-manager/data
+iptables-save > /root/iptables.backup.txt
+ip route | awk '/default/ {print $5}'   # запомни интерфейс: ens3, eth0, …
+/opt/vpn-manager/bin/vpnctl server configure --wan ens3 --full-tunnel
+/opt/vpn-manager/bin/vpnctl user regen alice
+/opt/vpn-manager/bin/vpnctl server apply
 ```
+
+На Windows: переимпортируй обновлённый `alice.conf` в WireGuard.
 
 Установка: `sudo bash deploy/install.sh` (см. `deploy/`).
 
@@ -171,13 +178,13 @@ wg syncconf wg0 <(wg-quick strip wg0)
 
 ---
 
-## Деплой на боевой сервер (безопасно)
+## Full-tunnel и Gemini
 
-1. **Не** включай `ufw`, если он был выключен.
-2. Порт **51821/udp** (не 51820, если занят).
-3. Подсеть **10.99.0.0/24** — не пересекается с `docker0` (обычно 172.x).
-4. Клиентам сначала только `--admin-only`.
-5. Бэкап перед изменениями:
+1. Сервер в NL/EU — IP датацентра; Gemini **может** заработать, но Google иногда блокирует VPS.
+2. Проверка IP: https://ifconfig.me — должен быть IP сервера `188.137.180.149`.
+3. `server apply` добавляет NAT — **проверь Docker-проект** после apply.
+4. Порт **51821/udp** открыт у хостера.
+5. Бэкап перед `server apply`:
 
 ```bash
 iptables-save > /root/iptables.backup.txt

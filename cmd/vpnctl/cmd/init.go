@@ -11,9 +11,12 @@ import (
 )
 
 var (
-	initEndpoint string
-	initPort     int
-	initSubnet   string
+	initEndpoint    string
+	initPort        int
+	initSubnet      string
+	initWAN         string
+	initFullTunnel  bool
+	initDNS         string
 )
 
 var initCmd = &cobra.Command{
@@ -21,19 +24,24 @@ var initCmd = &cobra.Command{
 	Short: "Инициализировать БД и ключи сервера (один раз)",
 	Long: `Создаёт SQLite и пару ключей сервера WireGuard.
 
+По умолчанию: full-tunnel (весь интернет через VPN) + NAT на сервере.
+
 Пример:
-  vpnctl init --endpoint 188.137.180.149 --port 51821`,
+  vpnctl init --endpoint 188.137.180.149 --port 51821 --wan ens3`,
 	RunE: runInit,
 }
 
 func init() {
-	initCmd.Flags().StringVar(&initEndpoint, "endpoint", "", "Публичный IP или домен сервера (для клиентских .conf)")
-	initCmd.Flags().IntVar(&initPort, "port", 51821, "UDP-порт WireGuard (51821 — безопасный выбор рядом с Docker)")
-	initCmd.Flags().StringVar(&initSubnet, "subnet", "10.99.0.0/24", "Подсеть VPN (не пересекается с docker0 по умолчанию)")
+	initCmd.Flags().StringVar(&initEndpoint, "endpoint", "", "Публичный IP или домен сервера")
+	initCmd.Flags().IntVar(&initPort, "port", 51821, "UDP-порт WireGuard")
+	initCmd.Flags().StringVar(&initSubnet, "subnet", "10.99.0.0/24", "Подсеть VPN")
+	initCmd.Flags().StringVar(&initWAN, "wan", "", "WAN-интерфейс (ens3, eth0). Пусто = авто при server apply")
+	initCmd.Flags().BoolVar(&initFullTunnel, "full-tunnel", true, "Весь интернет через VPN (NAT на сервере)")
+	initCmd.Flags().StringVar(&initDNS, "dns", "1.1.1.1, 8.8.8.8", "DNS в клиентских .conf")
 	rootCmd.AddCommand(initCmd)
 }
 
-func runInit(cmd *cobra.Command, _ []string) error {
+func runInit(_ *cobra.Command, _ []string) error {
 	s, err := openStore()
 	if err != nil {
 		return err
@@ -59,6 +67,9 @@ func runInit(cmd *cobra.Command, _ []string) error {
 		ServerPrivateKey: serverKeys.Private,
 		ServerPublicKey:  serverKeys.Public,
 		EndpointHost:     initEndpoint,
+		FullTunnel:       initFullTunnel,
+		WANInterface:     initWAN,
+		DefaultDNS:       initDNS,
 		CreatedAt:        time.Now().UTC(),
 	}
 
@@ -66,14 +77,15 @@ func runInit(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	fmt.Println("OK: VPN manager initialized")
+	fmt.Println("OK: VPN manager initialized (full-tunnel mode)")
 	fmt.Printf("DB: %s\n", paths.DBPath())
 	fmt.Printf("Server public key: %s\n", serverKeys.Public)
-	fmt.Printf("Listen port: %d\n", initPort)
-	fmt.Printf("Subnet: %s\n", initSubnet)
+	fmt.Printf("Full tunnel: %v\n", initFullTunnel)
+	fmt.Printf("DNS for clients: %s\n", initDNS)
 	if initEndpoint == "" {
-		fmt.Println("\nПодсказка: задай --endpoint при init или обнови вручную в БД перед выдачей клиентам.")
+		fmt.Println("\nПодсказка: задай --endpoint (IP сервера) перед выдачей конфигов.")
 	}
 	fmt.Println("\nСледующий шаг: vpnctl user add alice")
+	fmt.Println("На сервере: vpnctl server apply")
 	return nil
 }

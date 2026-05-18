@@ -31,7 +31,6 @@ func runUserRevoke(_ *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("OK: user %q revoked\n", name)
-	fmt.Println("Пересобери wg0.conf: vpnctl server render > /etc/wireguard/wg0.conf")
-	fmt.Println("Применить: wg syncconf wg0 <(wg-quick strip wg0)")
+	fmt.Println("Дальше: vpnctl server apply")
 	return nil
 }

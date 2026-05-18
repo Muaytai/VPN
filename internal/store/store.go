@@ -37,37 +37,6 @@ func Open(dbPath string) (*Store, error) {
 	return s, nil
 }
 
-func (s *Store) migrate() error {
-	schema := `
-CREATE TABLE IF NOT EXISTS server_settings (
-  id INTEGER PRIMARY KEY CHECK (id = 1),
-  listen_port INTEGER NOT NULL DEFAULT 51821,
-  subnet_cidr TEXT NOT NULL DEFAULT '10.99.0.0/24',
-  server_private_key TEXT NOT NULL,
-  server_public_key TEXT NOT NULL,
-  endpoint_host TEXT NOT NULL DEFAULT '',
-  created_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS users (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL UNIQUE,
-  client_private_key TEXT NOT NULL,
-  client_public_key TEXT NOT NULL,
-  assigned_ip TEXT NOT NULL UNIQUE,
-  active INTEGER NOT NULL DEFAULT 1,
-  created_at TEXT NOT NULL,
-  revoked_at TEXT
-);
-
-CREATE INDEX IF NOT EXISTS idx_users_active ON users(active);
-`
-	if _, err := s.db.Exec(schema); err != nil {
-		return fmt.Errorf("migrate: %w", err)
-	}
-	return nil
-}
-
 // Close закрывает соединение.
 func (s *Store) Close() error {
 	return s.db.Close()
@@ -80,6 +49,9 @@ type ServerSettings struct {
 	ServerPrivateKey string
 	ServerPublicKey  string
 	EndpointHost     string
+	FullTunnel       bool
+	WANInterface     string
+	DefaultDNS       string
 	CreatedAt        time.Time
 }
 

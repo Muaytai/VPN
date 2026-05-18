@@ -26,8 +26,8 @@ var userAddCmd = &cobra.Command{
 }
 
 func init() {
-	userAddCmd.Flags().BoolVar(&addAdminOnly, "admin-only", true, "Безопасный режим: клиент видит только VPN-IP сервера")
-	userAddCmd.Flags().StringVar(&addDNS, "dns", "1.1.1.1", "DNS для клиента (только если не --admin-only)")
+	userAddCmd.Flags().BoolVar(&addAdminOnly, "admin-only", false, "Только VPN-IP сервера (без интернета через VPN)")
+	userAddCmd.Flags().StringVar(&addDNS, "dns", "", "DNS (по умолчанию из init)")
 	userCmd.AddCommand(userAddCmd)
 }
 
@@ -68,24 +68,40 @@ func runUserAdd(_ *cobra.Command, args []string) error {
 		return err
 	}
 
-	confText := configgen.ClientConfig(settings, created, configgen.ClientOptions{
-		AdminOnly: addAdminOnly,
-		DNS:       addDNS,
-	})
+	return writeUserConfig(settings, created, addAdminOnly, addDNS)
+}
+
+func writeUserConfig(settings store.ServerSettings, user store.User, adminOnly bool, dns string) error {
+	if !adminOnly && !settings.FullTunnel {
+		adminOnly = true
+	}
+	opts := configgen.ClientOptions{
+		AdminOnly: adminOnly,
+		DNS:       dns,
+	}
+	confText := configgen.ClientConfig(settings, user, opts)
 
 	if err := os.MkdirAll(paths.ClientConfigsDir(), 0o700); err != nil {
 		return err
 	}
-	outPath := filepath.Join(paths.ClientConfigsDir(), name+".conf")
+	outPath := filepath.Join(paths.ClientConfigsDir(), user.Name+".conf")
 	if err := os.WriteFile(outPath, []byte(confText), 0o600); err != nil {
 		return err
 	}
 
 	fmt.Println("OK: user created")
-	fmt.Printf("Name: %s\n", created.Name)
-	fmt.Printf("IP: %s\n", created.AssignedIP)
+	fmt.Printf("Name: %s\n", user.Name)
+	fmt.Printf("IP: %s\n", user.AssignedIP)
+	fmt.Printf("Mode: %s\n", clientModeLabel(opts.AdminOnly))
 	fmt.Printf("Client config: %s\n", outPath)
-	fmt.Println("\n--- Peer для wg0.conf на сервере ---")
-	fmt.Print(configgen.PeerBlock(created))
+	fmt.Println("\n--- Peer для wg0.conf ---")
+	fmt.Print(configgen.PeerBlock(user))
 	return nil
+}
+
+func clientModeLabel(adminOnly bool) string {
+	if adminOnly {
+		return "admin-only (только 10.99.0.x)"
+	}
+	return "full-tunnel (весь интернет через VPN)"
 }
